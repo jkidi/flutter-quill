@@ -20,6 +20,18 @@
 [github-forks-badge]: https://img.shields.io/github/forks/singerdmx/flutter-quill.svg?style=for-the-badge&logo=github&logoColor=ffffff
 [github-forks-link]: https://github.com/singerdmx/flutter-quill/network/members
 
+## What's different in this fork?
+* Support for custom attributes/rules. Scroll down the readme to find out how to use custom attributes in your project.
+
+## How to use this library in your code?
+Add the following to your pubspec.yaml file
+
+```yaml
+dependencies:
+  flutter_quill:
+    git:
+      url: https://github.com/jkidi/flutter-quill.git
+```
 
 FlutterQuill is a rich text editor and a [Quill] component for [Flutter].
 
