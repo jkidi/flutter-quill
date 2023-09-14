@@ -1,5 +1,6 @@
 import 'dart:collection';
 
+import '../../../widgets/embeds.dart';
 import '../style.dart';
 import 'leaf.dart';
 import 'line.dart';
@@ -24,7 +25,7 @@ abstract class Container<T extends Node?> extends Node {
   int get childCount => _children.length;
 
   /// Returns the first child [Node].
-  Node get first => _children.first;
+  Node? get first => isEmpty ? null : _children.first;
 
   /// Returns the last child [Node].
   Node get last => _children.last;
@@ -103,7 +104,13 @@ abstract class Container<T extends Node?> extends Node {
   }
 
   @override
-  String toPlainText() => children.map((child) => child.toPlainText()).join();
+  String toPlainText([
+    Iterable<EmbedBuilder>? embedBuilders,
+    EmbedBuilder? unknownEmbedBuilder,
+  ]) =>
+      children
+          .map((e) => e.toPlainText(embedBuilders, unknownEmbedBuilder))
+          .join();
 
   /// Content length of this node's children.
   ///
@@ -117,15 +124,15 @@ abstract class Container<T extends Node?> extends Node {
 
     if (isNotEmpty) {
       final child = queryChild(index, false);
-      child.node!.insert(child.offset, data, style);
-      return;
+      if (child.isNotEmpty) {
+        child.node!.insert(child.offset, data, style);
+      }
+    } else {
+      assert(index == 0);
+      final node = defaultChild;
+      add(node);
+      node?.insert(index, data, style);
     }
-
-    // empty
-    assert(index == 0);
-    final node = defaultChild;
-    add(node);
-    node?.insert(index, data, style);
   }
 
   @override

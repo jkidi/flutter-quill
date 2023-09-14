@@ -1,9 +1,12 @@
 import 'dart:async';
 
-import 'package:tuple/tuple.dart';
-
+import '../../widgets/embeds.dart';
 import '../quill_delta.dart';
 import '../rules/rule.dart';
+import '../structs/doc_change.dart';
+import '../structs/history_changed.dart';
+import '../structs/offset_value.dart';
+import '../structs/segment_leaf_node.dart';
 import 'attribute.dart';
 import 'history.dart';
 import 'nodes/block.dart';
@@ -50,13 +53,12 @@ class Document {
     _rules.setCustomRules(customRules);
   }
 
-  final StreamController<Tuple3<Delta, Delta, ChangeSource>> _observer =
-      StreamController.broadcast();
+  final StreamController<DocChange> _observer = StreamController.broadcast();
 
   final History _history = History();
 
-  /// Stream of [Change]s applied to this document.
-  Stream<Tuple3<Delta, Delta, ChangeSource>> get changes => _observer.stream;
+  /// Stream of [DocChange]s applied to this document.
+  Stream<DocChange> get changes => _observer.stream;
 
   /// Inserts [data] in this document at specified [index].
   ///
@@ -154,19 +156,38 @@ class Document {
   /// included in the result.
   Style collectStyle(int index, int len) {
     final res = queryChild(index);
-    return (res.node as Line).collectStyle(res.offset, len);
+    // -1 because the cursor is at the part of the line that is not visible
+    // Bug: When the caret is in the middle of the paragraph
+    // and at the end of the format string, it will display the wrong state
+    // of the format button
+    final isLinkStyle =
+        res.node?.style.attributes[Attribute.link.key]?.value == true;
+    // In this case, we have an exception, this is a link.
+    // When node is a link we will not -1
+    return (res.node as Line).collectStyle(
+        len == 0 && res.node != null && !isLinkStyle
+            ? res.offset - 1
+            : res.offset,
+        len);
   }
 
-  /// Returns all styles for each node within selection
-  List<Tuple2<int, Style>> collectAllIndividualStyles(int index, int len) {
+  /// Returns all styles and Embed for each node within selection
+  List<OffsetValue> collectAllIndividualStyleAndEmbed(int index, int len) {
     final res = queryChild(index);
-    return (res.node as Line).collectAllIndividualStyles(res.offset, len);
+    return (res.node as Line)
+        .collectAllIndividualStylesAndEmbed(res.offset, len);
   }
 
   /// Returns all styles for any character within the specified text range.
   List<Style> collectAllStyles(int index, int len) {
     final res = queryChild(index);
     return (res.node as Line).collectAllStyles(res.offset, len);
+  }
+
+  /// Returns all styles for any character within the specified text range.
+  List<OffsetValue<Style>> collectAllStylesWithOffset(int index, int len) {
+    final res = queryChild(index);
+    return (res.node as Line).collectAllStylesWithOffsets(res.offset, len);
   }
 
   /// Returns plain text within the specified text range.
@@ -186,16 +207,21 @@ class Document {
     return block.queryChild(res.offset, true);
   }
 
-  /// Search the whole document for any substring matching the pattern
-  /// Returns the offsets that matches the pattern
-  List<int> search(Pattern other) {
+  /// Search given [substring] in the whole document
+  /// Supports [caseSensitive] and [wholeWord] options
+  /// Returns correspondent offsets
+  List<int> search(
+    String substring, {
+    bool caseSensitive = false,
+    bool wholeWord = false,
+  }) {
     final matches = <int>[];
     for (final node in _root.children) {
       if (node is Line) {
-        _searchLine(other, node, matches);
+        _searchLine(substring, caseSensitive, wholeWord, node, matches);
       } else if (node is Block) {
         for (final line in Iterable.castFrom<dynamic, Line>(node.children)) {
-          _searchLine(other, line, matches);
+          _searchLine(substring, caseSensitive, wholeWord, line, matches);
         }
       } else {
         throw StateError('Unreachable.');
@@ -204,10 +230,22 @@ class Document {
     return matches;
   }
 
-  void _searchLine(Pattern other, Line line, List<int> matches) {
+  void _searchLine(
+    String substring,
+    bool caseSensitive,
+    bool wholeWord,
+    Line line,
+    List<int> matches,
+  ) {
     var index = -1;
+    final lineText = line.toPlainText();
+    var pattern = RegExp.escape(substring);
+    if (wholeWord) {
+      pattern = r'\b' + pattern + r'\b';
+    }
+    final searchExpression = RegExp(pattern, caseSensitive: caseSensitive);
     while (true) {
-      index = line.toPlainText().indexOf(other, index + 1);
+      index = lineText.indexOf(searchExpression, index + 1);
       if (index < 0) {
         break;
       }
@@ -216,19 +254,15 @@ class Document {
   }
 
   /// Given offset, find its leaf node in document
-  Tuple2<Line?, Leaf?> querySegmentLeafNode(int offset) {
+  SegmentLeafNode querySegmentLeafNode(int offset) {
     final result = queryChild(offset);
     if (result.node == null) {
-      return const Tuple2(null, null);
+      return const SegmentLeafNode(null, null);
     }
 
     final line = result.node as Line;
     final segmentResult = line.queryChild(result.offset, false);
-    if (segmentResult.node == null) {
-      return Tuple2(line, null);
-    }
-    final segment = segmentResult.node as Leaf;
-    return Tuple2(line, segment);
+    return SegmentLeafNode(line, segmentResult.node as Leaf?);
   }
 
   /// Composes [change] Delta into this document.
@@ -276,16 +310,16 @@ class Document {
     if (_delta != _root.toDelta()) {
       throw 'Compose failed';
     }
-    final change = Tuple3(originalDelta, delta, changeSource);
+    final change = DocChange(originalDelta, delta, changeSource);
     _observer.add(change);
     _history.handleDocChange(change);
   }
 
-  Tuple2 undo() {
+  HistoryChanged undo() {
     return _history.undo(this);
   }
 
-  Tuple2 redo() {
+  HistoryChanged redo() {
     return _history.redo(this);
   }
 
@@ -346,7 +380,13 @@ class Document {
   }
 
   /// Returns plain text representation of this document.
-  String toPlainText() => _root.children.map((e) => e.toPlainText()).join();
+  String toPlainText([
+    Iterable<EmbedBuilder>? embedBuilders,
+    EmbedBuilder? unknownEmbedBuilder,
+  ]) =>
+      _root.children
+          .map((e) => e.toPlainText(embedBuilders, unknownEmbedBuilder))
+          .join();
 
   void _loadDocument(Delta doc) {
     if (doc.isEmpty) {

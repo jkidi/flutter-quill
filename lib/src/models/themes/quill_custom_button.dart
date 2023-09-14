@@ -3,17 +3,30 @@ import 'package:flutter/material.dart';
 import '../../../flutter_quill.dart';
 
 class QuillCustomButton {
-  const QuillCustomButton(
-      {this.icon,
-      this.onTap,
-      this.isToggled,
-      this.builder = defaultCustomButtonBuilder});
+  const QuillCustomButton({
+    this.icon,
+    this.iconColor,
+    this.onTap,
+    this.tooltip,
+    this.child,
+    this.isToggled,
+    this.builder = defaultCustomButtonBuilder
+  });
 
   // The icon widget
   final IconData? icon;
 
+  ///The icon color;
+  final Color? iconColor;
+
   // The function when the icon is tapped
   final VoidCallback? onTap;
+
+  ///The customButton placeholder
+  final Widget? child;
+
+  /// The button tooltip.
+  final String? tooltip;
 
   // The function to determine whether the button is toggled
   final CustomButtonToggled? isToggled;

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../../../widgets/embeds.dart';
 import '../../quill_delta.dart';
 import '../style.dart';
 import 'embeddable.dart';
@@ -73,9 +74,8 @@ abstract class Leaf extends Node {
     final remain = len - local;
     final node = _isolate(index, local);
 
-    if (remain > 0) {
-      assert(node.next != null);
-      node.next!.retain(0, remain, style);
+    if (remain > 0 && node.next != null) {
+      node.next?.retain(0, remain, style);
     }
     node.format(style);
   }
@@ -91,9 +91,8 @@ abstract class Leaf extends Node {
     target.unlink();
 
     final remain = len - local;
-    if (remain > 0) {
-      assert(next != null);
-      next!.delete(0, remain);
+    if (remain > 0 && next != null) {
+      next.delete(0, remain);
     }
 
     if (prev != null) {
@@ -224,7 +223,11 @@ class Text extends Leaf {
   String get value => _value as String;
 
   @override
-  String toPlainText() => value;
+  String toPlainText([
+    Iterable<EmbedBuilder>? embedBuilders,
+    EmbedBuilder? unknownEmbedBuilder,
+  ]) =>
+      value;
 }
 
 /// An embed node inside of a line in a Quill document.
@@ -257,7 +260,26 @@ class Embed extends Leaf {
   // Embed nodes are represented as unicode object replacement character in
   // plain text.
   @override
-  String toPlainText() => kObjectReplacementCharacter;
+  String toPlainText([
+    Iterable<EmbedBuilder>? embedBuilders,
+    EmbedBuilder? unknownEmbedBuilder,
+  ]) {
+    final builders = embedBuilders;
+
+    if (builders != null) {
+      for (final builder in builders) {
+        if (builder.key == value.type) {
+          return builder.toPlainText(this);
+        }
+      }
+    }
+
+    if (unknownEmbedBuilder != null) {
+      return unknownEmbedBuilder.toPlainText(this);
+    }
+
+    return Embed.kObjectReplacementCharacter;
+  }
 
   @override
   String toString() => '${super.toString()} ${value.type}';

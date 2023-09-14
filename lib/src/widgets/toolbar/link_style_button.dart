@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:tuple/tuple.dart';
 
 import '../../models/documents/attribute.dart';
 import '../../models/rules/insert.dart';
+import '../../models/structs/link_dialog_action.dart';
 import '../../models/themes/quill_dialog_theme.dart';
 import '../../models/themes/quill_icon_theme.dart';
 import '../../translations/toolbar.i18n.dart';
@@ -18,6 +18,9 @@ class LinkStyleButton extends StatefulWidget {
     this.iconTheme,
     this.dialogTheme,
     this.afterButtonPressed,
+    this.tooltip,
+    this.linkRegExp,
+    this.linkDialogAction,
     Key? key,
   }) : super(key: key);
 
@@ -27,6 +30,9 @@ class LinkStyleButton extends StatefulWidget {
   final QuillIconTheme? iconTheme;
   final QuillDialogTheme? dialogTheme;
   final VoidCallback? afterButtonPressed;
+  final String? tooltip;
+  final RegExp? linkRegExp;
+  final LinkDialogAction? linkDialogAction;
 
   @override
   _LinkStyleButtonState createState() => _LinkStyleButtonState();
@@ -64,6 +70,7 @@ class _LinkStyleButtonState extends State<LinkStyleButton> {
     final isToggled = _getLinkAttributeValue() != null;
     final pressedHandler = () => _openLinkDialog(context);
     return QuillIconButton(
+      tooltip: widget.tooltip,
       highlightElevation: 0,
       hoverElevation: 0,
       size: widget.iconSize * kIconButtonFactor,
@@ -77,7 +84,7 @@ class _LinkStyleButtonState extends State<LinkStyleButton> {
       ),
       fillColor: isToggled
           ? (widget.iconTheme?.iconSelectedFillColor ??
-              theme.toggleableActiveColor)
+              Theme.of(context).primaryColor)
           : (widget.iconTheme?.iconUnselectedFillColor ?? theme.canvasColor),
       borderRadius: widget.iconTheme?.borderRadius ?? 2,
       onPressed: pressedHandler,
@@ -86,7 +93,7 @@ class _LinkStyleButtonState extends State<LinkStyleButton> {
   }
 
   void _openLinkDialog(BuildContext context) {
-    showDialog<dynamic>(
+    showDialog<_TextLink>(
       context: context,
       builder: (ctx) {
         final link = _getLinkAttributeValue();
@@ -96,7 +103,7 @@ class _LinkStyleButtonState extends State<LinkStyleButton> {
         if (link != null) {
           // text should be the link's corresponding text, not selection
           final leaf =
-              widget.controller.document.querySegmentLeafNode(index).item2;
+              widget.controller.document.querySegmentLeafNode(index).leaf;
           if (leaf != null) {
             text = leaf.toPlainText();
           }
@@ -106,7 +113,12 @@ class _LinkStyleButtonState extends State<LinkStyleButton> {
         text ??=
             len == 0 ? '' : widget.controller.document.getPlainText(index, len);
         return _LinkDialog(
-            dialogTheme: widget.dialogTheme, link: link, text: text);
+          dialogTheme: widget.dialogTheme,
+          link: link,
+          text: text,
+          linkRegExp: widget.linkRegExp,
+          action: widget.linkDialogAction,
+        );
       },
     ).then(
       (value) {
@@ -122,34 +134,39 @@ class _LinkStyleButtonState extends State<LinkStyleButton> {
         ?.value;
   }
 
-  void _linkSubmitted(dynamic value) {
-    // text.isNotEmpty && link.isNotEmpty
-    final String text = (value as Tuple2).item1;
-    final String link = value.item2.trim();
-
+  void _linkSubmitted(_TextLink value) {
     var index = widget.controller.selection.start;
     var length = widget.controller.selection.end - index;
     if (_getLinkAttributeValue() != null) {
       // text should be the link's corresponding text, not selection
-      final leaf = widget.controller.document.querySegmentLeafNode(index).item2;
+      final leaf = widget.controller.document.querySegmentLeafNode(index).leaf;
       if (leaf != null) {
         final range = getLinkRange(leaf);
         index = range.start;
         length = range.end - range.start;
       }
     }
-    widget.controller.replaceText(index, length, text, null);
-    widget.controller.formatText(index, text.length, LinkAttribute(link));
+    widget.controller.replaceText(index, length, value.text, null);
+    widget.controller
+        .formatText(index, value.text.length, LinkAttribute(value.link));
   }
 }
 
 class _LinkDialog extends StatefulWidget {
-  const _LinkDialog({this.dialogTheme, this.link, this.text, Key? key})
-      : super(key: key);
+  const _LinkDialog({
+    this.dialogTheme,
+    this.link,
+    this.text,
+    this.linkRegExp,
+    this.action,
+    Key? key,
+  }) : super(key: key);
 
   final QuillDialogTheme? dialogTheme;
   final String? link;
   final String? text;
+  final RegExp? linkRegExp;
+  final LinkDialogAction? action;
 
   @override
   _LinkDialogState createState() => _LinkDialogState();
@@ -158,6 +175,7 @@ class _LinkDialog extends StatefulWidget {
 class _LinkDialogState extends State<_LinkDialog> {
   late String _link;
   late String _text;
+  late RegExp linkRegExp;
   late TextEditingController _linkController;
   late TextEditingController _textController;
 
@@ -166,6 +184,7 @@ class _LinkDialogState extends State<_LinkDialog> {
     super.initState();
     _link = widget.link ?? '';
     _text = widget.text ?? '';
+    linkRegExp = widget.linkRegExp ?? AutoFormatMultipleLinksRule.linkRegExp;
     _linkController = TextEditingController(text: _link);
     _textController = TextEditingController(text: _text);
   }
@@ -203,15 +222,21 @@ class _LinkDialogState extends State<_LinkDialog> {
           ),
         ],
       ),
-      actions: [
-        TextButton(
-          onPressed: _canPress() ? _applyLink : null,
-          child: Text(
-            'Ok'.i18n,
-            style: widget.dialogTheme?.labelTextStyle,
-          ),
-        ),
-      ],
+      actions: [_okButton()],
+    );
+  }
+
+  Widget _okButton() {
+    if (widget.action != null) {
+      return widget.action!.builder(_canPress(), _applyLink);
+    }
+
+    return TextButton(
+      onPressed: _canPress() ? _applyLink : null,
+      child: Text(
+        'Ok'.i18n,
+        style: widget.dialogTheme?.buttonTextStyle,
+      ),
     );
   }
 
@@ -219,8 +244,7 @@ class _LinkDialogState extends State<_LinkDialog> {
     if (_text.isEmpty || _link.isEmpty) {
       return false;
     }
-
-    if (!AutoFormatMultipleLinksRule.linkRegExp.hasMatch(_link)) {
+    if (!linkRegExp.hasMatch(_link)) {
       return false;
     }
 
@@ -240,6 +264,16 @@ class _LinkDialogState extends State<_LinkDialog> {
   }
 
   void _applyLink() {
-    Navigator.pop(context, Tuple2(_text.trim(), _link.trim()));
+    Navigator.pop(context, _TextLink(_text.trim(), _link.trim()));
   }
+}
+
+class _TextLink {
+  _TextLink(
+    this.text,
+    this.link,
+  );
+
+  final String text;
+  final String link;
 }
