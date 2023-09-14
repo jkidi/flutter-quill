@@ -21,7 +21,8 @@
 [github-forks-link]: https://github.com/singerdmx/flutter-quill/network/members
 
 ## What's different in this fork?
-* Support for custom attributes/rules. Scroll down the readme to find out how to use custom attributes in your project.
+* Support for custom attributes/rules. Scroll down the readme or click on the link below to find out how to use custom attributes in your project.
+* [How do I use custom attributes?](#custom-attributes)
 
 ## How to use this library in your code?
 Add the following to your pubspec.yaml file

@@ -41,12 +41,14 @@ class QuillCustomButtonWidget extends StatefulWidget {
       required this.controller,
       required this.iconSize,
       this.iconTheme,
+      this.tooltip,
       this.afterPressed});
 
   final QuillCustomButton button;
   final QuillController controller;
   final double iconSize;
   final QuillIconTheme? iconTheme;
+  final String? tooltip;
   final VoidCallback? afterPressed;
 
   @override
@@ -94,6 +96,7 @@ class _QuillCustomButtonWidgetState extends State<QuillCustomButtonWidget> {
         widget.button.icon,
         widget.iconSize,
         widget.iconTheme,
+        widget.tooltip,
         _toggled,
         widget.button.onTap,
         widget.afterPressed);
@@ -106,6 +109,7 @@ typedef CustomButtonBuilder = Widget Function(
   IconData? icon,
   double iconSize,
   QuillIconTheme? iconTheme,
+  String? tooltip,
   bool isToggled,
   VoidCallback? onPressed,
   VoidCallback? afterPressed,
@@ -117,6 +121,7 @@ Widget defaultCustomButtonBuilder(
   IconData? icon,
   double iconSize,
   QuillIconTheme? iconTheme,
+  String? tooltip,
   bool isToggled,
   VoidCallback? onPressed,
   VoidCallback? afterPressed,
@@ -139,6 +144,7 @@ Widget defaultCustomButtonBuilder(
     hoverElevation: 0,
     size: iconSize * kIconButtonFactor,
     icon: Icon(icon, size: iconSize, color: iconColor),
+    tooltip: tooltip,
     fillColor: fill,
     onPressed: onPressed,
     afterPressed: afterPressed,
