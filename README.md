@@ -286,6 +286,14 @@ QuillToolbar.basic(
 );
 ```
 
+> [!WARNING]
+>
+> This package uses [`gal`](https://github.com/natsuk4ze/) to save images.
+> For this to work, you need to add the appropriate permissions
+> to your `Info.plist` and `AndroidManifest.xml` files.
+>
+> See https://github.com/natsuk4ze/gal#-get-started to add the needed lines.
+
 ### Custom Size Image for Mobile
 
 Define `mobileWidth`, `mobileHeight`, `mobileMargin`, `mobileAlignment` as follows:
@@ -343,6 +351,7 @@ class NotesEmbedBuilder extends EmbedBuilder {
     Embed node,
     bool readOnly,
     bool inline,
+    TextStyle textStyle,
   ) {
     final notes = NotesBlockEmbed(node.value.data).document;
 
@@ -434,7 +443,7 @@ QuillToolbar(locale: Locale('fr'), ...)
 QuillEditor(locale: Locale('fr'), ...)
 ```
 
-Currently, translations are available for these 30 locales:
+Currently, translations are available for these 31 locales:
 
 * `Locale('en')`
 * `Locale('ar')`
@@ -465,6 +474,7 @@ Currently, translations are available for these 30 locales:
 * `Locale('fa')`
 * `Locale('hi')`
 * `Locale('sr')`
+* `Locale('sw')`
 * `Locale('ja')`
 
 #### Contributing to translations

@@ -1,3 +1,13 @@
+## 0.5.1
+- Fix warrning "The platformViewRegistry getter is deprecated and will be removed in a future release. Please import it from dart:ui_web instead."
+- Add QuillImageUtilities class
+- Small improvemenets
+- Allow to use the mobile context menu on desktop by force using it
+
+## 0.5.0
+- Migrated from `gallery_saver` to `gal` for saving images
+- Added callbacks for greater control of editing images
+
 ## 0.4.1
 - Updated dependencies to support image_picker 1.0
 
